@@ -23,5 +23,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("%+v\n", string(event.Records[0].Kinesis.Data))
+	for _, v := range event.Records {
+		fmt.Printf("%+v\n", v.Kinesis)
+	}
 }

@@ -10,12 +10,20 @@ type MyData struct {
 }
 
 func main() {
-	generator := eventgen.New(MyData{}).Register(func(i int) MyData {
-		// generate data for each step
+    // register data creation function in each steps 
+    generator := eventgen.New(MyData{}).Register(func(i int) interface{} {
+		return MyData{
+			A: i,
+			B: fmt.Sprintf("%dth", i),
+		}
 	})
+	event, err := generator.Kinesis(10)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	kinesisEvent := generator.Kinesis(100) // create 100 records in a event
-
-	// use evnets here
+	for _, v := range event.Records {
+		fmt.Printf("%+v\n", v.Kinesis)
+	}
 }
 ```

@@ -33,32 +33,34 @@ func main() {
 ## DynamoDB stream
 
 ```go
-generator := eventgen.New(eventgen.DefaultDynamoDBConfig())
+func main() {
+    generator := eventgen.New(eventgen.DefaultDynamoDBConfig())
 
-	f := func(i int) eventgen.DynamoDBImages {
-		return eventgen.DynamoDBImages{
-			Keys: map[string]events.DynamoDBAttributeValue{
-				"Id": events.NewNumberAttribute("101"),
-			},
-			NewImage: map[string]events.DynamoDBAttributeValue{
-				"Id":      events.NewNumberAttribute("101"),
-				"Message": events.NewStringAttribute("New item!"),
-			},
-			OldImage: map[string]events.DynamoDBAttributeValue{
-				"Id":      events.NewNumberAttribute("101"),
-				"Message": events.NewStringAttribute("This message has changed"),
-			},
+    f := func(i int) eventgen.DynamoDBImages {
+        return eventgen.DynamoDBImages{
+            Keys: map[string]events.DynamoDBAttributeValue{
+                "Id": events.NewNumberAttribute("101"),
+            },
+            NewImage: map[string]events.DynamoDBAttributeValue{
+                "Id":      events.NewNumberAttribute("101"),
+                "Message": events.NewStringAttribute("New item!"),
+            },
+            OldImage: map[string]events.DynamoDBAttributeValue{
+                "Id":      events.NewNumberAttribute("101"),
+                "Message": events.NewStringAttribute("This message has changed"),
+            },
             EventType = eventgen.DynamoDBEventTypeModify
-			StreamViewType: "NEW_AND_OLD_IMAGES",
-		}
-	}
-	generator.DynamoDBIterator = f
+            StreamViewType: "NEW_AND_OLD_IMAGES",
+        }
+    }
+    generator.DynamoDBIterator = f
 
-	d, err := generator.DynamoDB(10)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, v := range d.Records {
-		fmt.Println(v.EventName)
-	}
+    d, err := generator.DynamoDB(10)
+    if err != nil {
+        log.Fatal(err)
+    }
+    for _, v := range d.Records {
+        fmt.Println(v.EventName)
+    }
+}
 ```

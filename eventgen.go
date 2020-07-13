@@ -7,56 +7,32 @@ import (
 	"time"
 )
 
-const (
-	DefaultEventSource   = "eventgen:kinesis"
-	DefaultEventName     = DefaultEventSource + ":record"
-	DefaultEventIDPrefix = "eventgen:"
-	DefaultRegion        = "us-east-2"
-	DefaultPartitionKey  = "1"
-)
-
-type Config struct {
-	Region        string
-	EventIDPrefix string
-	EventName     string
-	EventSource   string
-	PartitionKey  string
-}
-
 type Generator struct {
 	Config
-	Struct  interface{}
-	Iterate func(i int) interface{}
+	KinesisIterator  func(i int) interface{}
+	DynamoDBIterator func(i int) DynamoDBImages
 }
 
-func New(i interface{}) *Generator {
+func New(c Config) *Generator {
 	return &Generator{
-		Config: Config{
-			Region:        DefaultRegion,
-			EventIDPrefix: DefaultEventIDPrefix,
-			EventName:     DefaultEventName,
-			EventSource:   DefaultEventSource,
-			PartitionKey:  DefaultPartitionKey,
-		},
-		Struct: i,
+		Config: c,
 	}
 }
 
-// optional
-func (g *Generator) Setup(c Config) *Generator {
-	g.Config = c
+func (g *Generator) RegisterKinesis(f func(i int) interface{}) *Generator {
+	g.KinesisIterator = f
 	return g
 }
 
-func (g *Generator) Register(f func(i int) interface{}) *Generator {
-	g.Iterate = f
+func (g *Generator) RegisterDynamoDB(f func(i int) DynamoDBImages) *Generator {
+	g.DynamoDBIterator = f
 	return g
 }
 
 func (g *Generator) Kinesis(n int) (*events.KinesisEvent, error) {
 	var res []events.KinesisEventRecord
 	for i := 0; i < n; i++ {
-		b, err := json.Marshal(g.Iterate(i))
+		b, err := json.Marshal(g.KinesisIterator)
 		if err != nil {
 			return nil, fmt.Errorf("json marshal: %w", err)
 		}
@@ -82,4 +58,31 @@ func (g *Generator) Kinesis(n int) (*events.KinesisEvent, error) {
 	return &events.KinesisEvent{
 		Records: res,
 	}, nil
+}
+
+func (g *Generator) DynamoDB(n int) (*events.DynamoDBEvent, error) {
+	var res []events.DynamoDBEventRecord
+	for i := 0; i < n; i++ {
+		image := g.DynamoDBIterator(i)
+		seqNo := fmt.Sprintf("%057d", i)
+		record := events.DynamoDBEventRecord{
+			AWSRegion:   g.Region,
+			EventID:     fmt.Sprintf("%s:%s", g.EventIDPrefix, seqNo),
+			EventName:   string(image.EventType),
+			EventSource: DynamoDBDefaultEventSource,
+		}
+
+		record.Change = events.DynamoDBStreamRecord{
+			ApproximateCreationDateTime: events.SecondsEpochTime{Time: time.Now()},
+			Keys:                        image.Keys,
+			NewImage:                    image.NewImage,
+			OldImage:                    image.OldImage,
+			SequenceNumber:              seqNo,
+			StreamViewType:              image.StreamViewType,
+		}
+		record.Change.SizeBytes = int64(len(fmt.Sprintf("%+v", record.Change)))
+		res = append(res, record)
+	}
+
+	return &events.DynamoDBEvent{Records: res}, nil
 }

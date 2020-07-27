@@ -7,13 +7,13 @@ AWS lambda event generator for Golang tests
 
 ```go
 type MyData struct {
-	a int
-	b string
+	A int
+	B string
 }
 
 func main() {
     // register data creation function in each steps 
-    generator := eventgen.New(eventgen.DefaultKinesisConfig()).Register(func(i int) interface{} {
+    generator := eventgen.New(eventgen.DefaultKinesisConfig()).RegisterKinesis(func(i int) interface{} {
 		return MyData{
 			A: i,
 			B: fmt.Sprintf("%dth", i),
@@ -34,33 +34,39 @@ func main() {
 
 ```go
 func main() {
-    generator := eventgen.New(eventgen.DefaultDynamoDBConfig())
+	generator := eventgen.New(eventgen.DefaultDynamoDBConfig()).
+		RegisterDynamoDB(func(i int) eventgen.DynamoDBImages {
+			e := eventgen.DynamoDBImages{
+				Keys: map[string]events.DynamoDBAttributeValue{
+					"Id": events.NewNumberAttribute("101"),
+				},
+				NewImage: map[string]events.DynamoDBAttributeValue{
+					"Id":      events.NewNumberAttribute("101"),
+					"Message": events.NewStringAttribute("New item!"),
+				},
+				OldImage: map[string]events.DynamoDBAttributeValue{
+					"Id":      events.NewNumberAttribute("101"),
+					"Message": events.NewStringAttribute("This message has changed"),
+				},
+				StreamViewType: "NEW_AND_OLD_IMAGES",
+			}
+			if i < 3 {
+				e.EventType = eventgen.DynamoDBEventTypeInsert
+			} else if i < 6 {
+				e.EventType = eventgen.DynamoDBEventTypeModify
+			} else {
+				e.EventType = eventgen.DynamoDBEventTypeMemove
+			}
 
-    f := func(i int) eventgen.DynamoDBImages {
-        return eventgen.DynamoDBImages{
-            Keys: map[string]events.DynamoDBAttributeValue{
-                "Id": events.NewNumberAttribute("101"),
-            },
-            NewImage: map[string]events.DynamoDBAttributeValue{
-                "Id":      events.NewNumberAttribute("101"),
-                "Message": events.NewStringAttribute("New item!"),
-            },
-            OldImage: map[string]events.DynamoDBAttributeValue{
-                "Id":      events.NewNumberAttribute("101"),
-                "Message": events.NewStringAttribute("This message has changed"),
-            },
-            EventType = eventgen.DynamoDBEventTypeModify
-            StreamViewType: "NEW_AND_OLD_IMAGES",
-        }
-    }
-    generator.DynamoDBIterator = f
+			return e
+		})
 
-    d, err := generator.DynamoDB(10)
-    if err != nil {
-        log.Fatal(err)
-    }
-    for _, v := range d.Records {
-        fmt.Println(v.EventName)
-    }
+	d, err := generator.DynamoDB(10)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, v := range d.Records {
+		fmt.Println(v.EventName)
+	}
 }
 ```

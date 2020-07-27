@@ -9,8 +9,8 @@ import (
 
 type Generator struct {
 	Config
-	KinesisIterator  func(i int) interface{}
-	DynamoDBIterator func(i int) DynamoDBImages
+	kinesisGenerator  func(i int) interface{}
+	dynamoDBGenerator func(i int) DynamoDBImages
 }
 
 func New(c Config) *Generator {
@@ -20,19 +20,19 @@ func New(c Config) *Generator {
 }
 
 func (g *Generator) RegisterKinesis(f func(i int) interface{}) *Generator {
-	g.KinesisIterator = f
+	g.kinesisGenerator = f
 	return g
 }
 
 func (g *Generator) RegisterDynamoDB(f func(i int) DynamoDBImages) *Generator {
-	g.DynamoDBIterator = f
+	g.dynamoDBGenerator = f
 	return g
 }
 
 func (g *Generator) Kinesis(n int) (*events.KinesisEvent, error) {
 	var res []events.KinesisEventRecord
 	for i := 0; i < n; i++ {
-		b, err := json.Marshal(g.KinesisIterator)
+		b, err := json.Marshal(g.kinesisGenerator(i))
 		if err != nil {
 			return nil, fmt.Errorf("json marshal: %w", err)
 		}
@@ -63,7 +63,7 @@ func (g *Generator) Kinesis(n int) (*events.KinesisEvent, error) {
 func (g *Generator) DynamoDB(n int) (*events.DynamoDBEvent, error) {
 	var res []events.DynamoDBEventRecord
 	for i := 0; i < n; i++ {
-		image := g.DynamoDBIterator(i)
+		image := g.dynamoDBGenerator(i)
 		seqNo := fmt.Sprintf("%057d", i)
 		record := events.DynamoDBEventRecord{
 			AWSRegion:   g.Region,
